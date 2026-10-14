@@ -1,0 +1,28 @@
+@startuml
+abstract class Model.Payslip
+annotation java.lang.Override
+class Model.BonusAndIncentive
+class Model.BonusType
+class Model.LeaveEntitlement
+class Model.LeaveRecord
+class Model.LeaveType
+class Model.PayPeriod
+class java.time.LocalDate
+class java.time.LocalDateTime
+class java.time.format.DateTimeFormatter
+enum Model.LeaveStatus
+interface DAO.PayslipDao
+Model.Payslip ..> java.lang.Override
+Model.Payslip --|> DAO.PayslipDao
+Model.BonusAndIncentive ..> java.lang.Override
+Model.BonusAndIncentive ..> java.time.LocalDate
+Model.BonusType ..> java.lang.Override
+Model.LeaveEntitlement ..> java.lang.Override
+Model.LeaveRecord ..> java.lang.Override
+Model.LeaveRecord ..> java.time.LocalDate
+Model.LeaveRecord ..> java.time.LocalDateTime
+Model.LeaveType ..> java.lang.Override
+Model.PayPeriod ..> java.lang.Override
+Model.PayPeriod ..> java.time.LocalDate
+Model.PayPeriod ..> java.time.format.DateTimeFormatter
+@enduml

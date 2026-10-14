@@ -1,0 +1,3 @@
+#Controller Package
+Controller code acts as a liaison between the Model and the View, 
+receiving user input and deciding what to do with it. It’s the brains of the application, and ties together the model and the view.

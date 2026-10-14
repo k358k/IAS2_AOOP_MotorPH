@@ -1,0 +1,8 @@
+A Data Access Object (DAO) in Java is a design pattern used to abstract and encapsulate all access to a data source. 
+It separates the application's business logic from the persistence layer, providing an abstract interface for data interaction. 
+This promotes loose coupling, improves code maintainability, and allows for easier switching between different data sources without
+affecting the rest of the application.
+
+
+DAOs typically define standard CRUD (Create, Read, Update, Delete) operations, hiding the underlying data access mechanisms. 
+They can interact with various data sources such as relational databases, external services, or other persistence mechanisms.

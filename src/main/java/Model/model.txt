@@ -1,0 +1,2 @@
+Model code typically reflects real-world things. This code can hold raw data, or it will define the essential components of your app. For instance, 
+if you were building a To-do app, the model code would define what a “task” is and what a “list” is – since those are the main components of a todo app.
