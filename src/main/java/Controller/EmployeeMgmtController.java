@@ -237,7 +237,7 @@ public class EmployeeMgmtController {
             if (isSuccessful) {
 
             AuditLogger.logActivity(
-                "EMPLOYEE_DELETED",
+                "EMPLOYEE_ADDED",
                 String.valueOf(employee.getEmpId())
             );
             
