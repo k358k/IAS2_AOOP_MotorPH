@@ -350,6 +350,11 @@ public class EmployeeMgmtController {
 
                 if (isSuccessful) {
 
+                    AuditLogger.logActivity(
+                        "EMPLOYEE_DELETED",
+                        String.valueOf(empId)
+                    );    
+                    
                     view.showMessage("Employee record deleted successfully!");
 
                     view.populateEmployeeTable(null);
