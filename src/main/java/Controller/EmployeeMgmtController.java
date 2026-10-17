@@ -11,6 +11,8 @@
  */
 package Controller;
 
+import Util.AuditLogger;
+
 import Model.*;
 
 import View.EmployeeMgmtAddView;
@@ -250,6 +252,11 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
+                AuditLogger.logActivity(
+                    "EMPLOYEE_CREATED",
+                    String.valueOf(employee.getEmpId(()
+                );                                     
+                
                 viewAdd.showMessage("Employee record added successfully!");
                 viewAdd.dispose();
                 view.populateEmployeeTable(null);
