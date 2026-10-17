@@ -17,48 +17,27 @@ import Model.*;
 
 import View.EmployeeMgmtAddView;
 
-import Service.EmployeeService;
 
 import Service.HrService;
 
 import Service.InputValidatorService;
 
-import Util.PasswordUtil;
-
-import java.sql.Connection;
-
-import java.sql.PreparedStatement;
-
-import java.sql.ResultSet;
 
 import java.sql.SQLException;
 
-import java.text.SimpleDateFormat;
 
 import java.time.LocalDate;
 
-import java.time.format.DateTimeFormatter;
 
 import java.time.format.DateTimeParseException;
 
-import java.util.Date;
 
 import javax.swing.*;
 
-import java.awt.*;
-
-import java.awt.event.ActionListener;
-
-import java.awt.event.KeyAdapter;
-
-import java.awt.event.KeyEvent;
 
 //import View.EmployeeAddView;
 import View.EmployeeMgmtView;
 
-import java.awt.event.MouseAdapter;
-
-import java.awt.event.MouseEvent;
 
 import java.util.logging.Level;
 
@@ -197,10 +176,10 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
-                AuditLogger.logActivity(
-                    "EMPLOYEE_UPDATED",
-                    String.valueOf(employee.getEmpId(()
-                );                                     
+           AuditLogger.logActivity(
+              "EMPLOYEE_UPDATED",
+               String.valueOf(employee.getEmpId())
+               );                                   
                 
                 view.showMessage("Employee record updated successfully!");
 
@@ -257,11 +236,11 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
-                AuditLogger.logActivity(
-                    "EMPLOYEE_CREATED",
-                    String.valueOf(employee.getEmpId(()
-                );                                     
-                
+            AuditLogger.logActivity(
+                "EMPLOYEE_DELETED",
+                String.valueOf(employee.getEmpId())
+            );
+            
                 viewAdd.showMessage("Employee record added successfully!");
                 viewAdd.dispose();
                 view.populateEmployeeTable(null);
