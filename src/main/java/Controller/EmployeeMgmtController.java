@@ -197,6 +197,11 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
+                AuditLogger.logActivity(
+                    "EMPLOYEE_UPDATED",
+                    String.valueOf(employee.getEmpId(()
+                );                                     
+                
                 view.showMessage("Employee record updated successfully!");
 
                 view.populateEmployeeTable(null);
