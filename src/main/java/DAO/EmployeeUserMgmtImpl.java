@@ -2,6 +2,7 @@ package DAO;
 
 import DAO.EmployeeUserMgmtDAO;
 import Model.*;
+import Util.AuditLogger;
 import Util.DatabaseConnectionUtil;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -10,6 +11,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -22,91 +24,90 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
         this.connection = DatabaseConnectionUtil.getConnection();
     }
     
+    // Helper method to capture current active user ID (defaults to HR_ADMIN)
+    private String getCurrentUserId() {
+        return "HR_ADMIN"; 
+    }
     
     @Override
-   public Employee findEmployeeById(Integer empId) throws SQLException {
+    public Employee findEmployeeById(Integer empId) throws SQLException {
         CallableStatement callableStatement = null;
         ResultSet resultSet = null;
         Employee employee = null;
 
         try {
-            // Prepare the stored procedure call
             callableStatement = connection.prepareCall("{CALL FindEmployeeById(?)}");
-
-            // Set input parameter
             callableStatement.setInt(1, empId);
-
-            // Execute the stored procedure
             resultSet = callableStatement.executeQuery();
 
-            // Process the result set
             if (resultSet.next()) {
                 employee = mapResultSetToEmployee(resultSet);
             }
 
+            // AUDIT LOG (READ SINGLE RECORD)
+            AuditLogger.logActivity(
+                getCurrentUserId(),
+                "READ_EMPLOYEE",
+                String.valueOf(empId),
+                employee != null ? "Successfully retrieved employee record" : "Employee record not found"
+            );
+
         } catch (SQLException e) {
-            // Handle SQL exceptions
+            AuditLogger.logActivity(getCurrentUserId(), "READ_EMPLOYEE_FAILED", String.valueOf(empId), e.getMessage());
             throw e;
         } finally {
-            // Clean up resources
-            if (resultSet != null) {
-                resultSet.close();
-            }
-            if (callableStatement != null) {
-                callableStatement.close();
-            }
+            if (resultSet != null) resultSet.close();
+            if (callableStatement != null) callableStatement.close();
         }
 
         return employee;
     }
    
-   @Override
+    @Override
     public List<Employee> findAllEmployee() throws SQLException {
         CallableStatement callableStatement = null;
         ResultSet resultSet = null;
         List<Employee> employees = new ArrayList<>();
 
         try {
-            // Prepare the stored procedure call
             callableStatement = connection.prepareCall("{CALL FindAllEmployees()}");
-
-            // Execute the stored procedure
             resultSet = callableStatement.executeQuery();
 
-            // Process the result set
             while (resultSet.next()) {
                 Employee employee = mapResultSetToEmployee(resultSet);
                 employees.add(employee);
             }
 
+            // AUDIT LOG (READ ALL RECORDS)
+            AuditLogger.logActivity(
+                getCurrentUserId(),
+                "READ_ALL_EMPLOYEES",
+                "N/A",
+                "Retrieved list of " + employees.size() + " employee records"
+            );
+
         } catch (SQLException e) {
-            // Handle SQL exceptions
+            AuditLogger.logActivity(getCurrentUserId(), "READ_ALL_EMPLOYEES_FAILED", "N/A", e.getMessage());
             throw e;
         } finally {
-            // Clean up resources
-            if (resultSet != null) {
-                resultSet.close();
-            }
-            if (callableStatement != null) {
-                callableStatement.close();
-            }
+            if (resultSet != null) resultSet.close();
+            if (callableStatement != null) callableStatement.close();
         }
 
         return employees;
     }
     
-    
-    
     @Override
     public boolean createEmployeeRecord(Employee employee) throws SQLException {
         CallableStatement callableStatement = null;      
+        Statement stmt = null;
+        ResultSet rsKey = null;
         boolean isSuccess = false;
+        int generatedEmpId = 0;
 
         try {
-            // Prepare the stored procedure call
             callableStatement = connection.prepareCall("{CALL CreateEmployeeRecord(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)}");
 
-            // Set input parameters
             callableStatement.setString(1, employee.getFirstName());
             callableStatement.setString(2, employee.getLastName());
             callableStatement.setString(3, employee.getGender().toString());
@@ -122,10 +123,10 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             
             callableStatement.setString(13, employee.getPositionSalaryHistory().getJobPosition().getTitle());
             callableStatement.setString(14, employee.getPositionSalaryHistory().getJobPosition().getDescription());          
-            callableStatement.setBigDecimal(15, new BigDecimal(employee.getPositionSalaryHistory().getBasicSalary())); // Converted into String first to avoid precision issues.
-            callableStatement.setBigDecimal(16, new BigDecimal(employee.getPositionSalaryHistory().getRiceSubsidy()));
-            callableStatement.setBigDecimal(17, new BigDecimal(employee.getPositionSalaryHistory().getPhoneAllowance()));
-            callableStatement.setBigDecimal(18, new BigDecimal(employee.getPositionSalaryHistory().getClothingAllowance()));
+            callableStatement.setBigDecimal(15, new BigDecimal(Double.toString(employee.getPositionSalaryHistory().getBasicSalary())));
+            callableStatement.setBigDecimal(16, new BigDecimal(Double.toString(employee.getPositionSalaryHistory().getRiceSubsidy())));
+            callableStatement.setBigDecimal(17, new BigDecimal(Double.toString(employee.getPositionSalaryHistory().getPhoneAllowance())));
+            callableStatement.setBigDecimal(18, new BigDecimal(Double.toString(employee.getPositionSalaryHistory().getClothingAllowance())));
             
             callableStatement.setString(19, employee.getEmployeeAddress().getAddressRecord().getBuildingStreet());
             callableStatement.setString(20, employee.getEmployeeAddress().getAddressRecord().getBarangay());
@@ -137,38 +138,46 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             callableStatement.setString(25, employee.getPassword());
             callableStatement.setString(26, employee.getUserRole().toString());
 
-            // Execute the stored procedure
+            // 1. Execute database insertion FIRST
             callableStatement.execute();
-            isSuccess = true; // Set success flag
+            isSuccess = true;
+
+            // 2. Retrieve LAST_INSERT_ID() generated by MySQL
+            stmt = connection.createStatement();
+            rsKey = stmt.executeQuery("SELECT LAST_INSERT_ID()");
+            if (rsKey.next()) {
+                generatedEmpId = rsKey.getInt(1);
+            }
+
+            // 3. AUDIT LOG (CREATE EVENT) - Uses the real retrieved auto-increment ID!
+            AuditLogger.logActivity(
+                getCurrentUserId(),
+                "CREATE_EMPLOYEE",
+                String.valueOf(generatedEmpId > 0 ? generatedEmpId : "NEW"),
+                "Created employee: " + employee.getFirstName() + " " + employee.getLastName()
+            );
             
         } catch (SQLException e) {
-            // Handle SQL exceptions
+            AuditLogger.logActivity(getCurrentUserId(), "CREATE_EMPLOYEE_FAILED", "N/A", e.getMessage());
             throw e;
         } finally {
-            // Clean up resources
-            if (callableStatement != null) {
-                callableStatement.close();
-            }
+            if (rsKey != null) rsKey.close();
+            if (stmt != null) stmt.close();
+            if (callableStatement != null) callableStatement.close();
         }
         
-        return isSuccess; // Return success status
+        return isSuccess;
     }
                 
     @Override
-    public boolean updateEmployeeRecord(Employee newEmployee) throws SQLException{
+    public boolean updateEmployeeRecord(Employee newEmployee) throws SQLException {
         CallableStatement callableStatement = null;      
         boolean isSuccess = false;
-        
-        System.out.println("Running EmployeeUserMgmtImpl.updateEmployeeRecord()...");
-        System.out.println("Employee Object Parameter: " + newEmployee.toString());
 
         try {
-            // Prepare the stored procedure call
             callableStatement = connection.prepareCall("{CALL UpdateEmployeeRecordSimplified(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)}");
 
-            // Set input parameters
             callableStatement.setInt(1, newEmployee.getEmpId());
-            
             callableStatement.setString(2, newEmployee.getFirstName());
             callableStatement.setString(3, newEmployee.getLastName());
             callableStatement.setString(4, newEmployee.getGender().toString());
@@ -184,7 +193,7 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             
             callableStatement.setObject(14, newEmployee.getPositionSalaryHistory().getJobPosition().getTitle());
             callableStatement.setString(15, newEmployee.getPositionSalaryHistory().getJobPosition().getDescription());
-            callableStatement.setBigDecimal(16, new BigDecimal(Double.toString(newEmployee.getPositionSalaryHistory().getBasicSalary()))); // Converted into String first to avoid precision issues.
+            callableStatement.setBigDecimal(16, new BigDecimal(Double.toString(newEmployee.getPositionSalaryHistory().getBasicSalary())));
             callableStatement.setBigDecimal(17, new BigDecimal(Double.toString(newEmployee.getPositionSalaryHistory().getRiceSubsidy())));
             callableStatement.setBigDecimal(18, new BigDecimal(Double.toString(newEmployee.getPositionSalaryHistory().getPhoneAllowance())));
             callableStatement.setBigDecimal(19, new BigDecimal(Double.toString(newEmployee.getPositionSalaryHistory().getClothingAllowance())));
@@ -196,72 +205,86 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             callableStatement.setString(24, newEmployee.getEmployeeAddress().getAddressRecord().getZipcode());
             callableStatement.setString(25, newEmployee.getEmployeeAddress().getAddressType().toString());
 
-            // Execute the stored procedure
             callableStatement.execute();
-            isSuccess = true; // Set success flag
+            isSuccess = true;
+
+            // AUDIT LOG (UPDATE EVENT)
+            AuditLogger.logActivity(
+                getCurrentUserId(),
+                "UPDATE_EMPLOYEE",
+                String.valueOf(newEmployee.getEmpId()),
+                "Updated details for: " + newEmployee.getFirstName() + " " + newEmployee.getLastName()
+            );
+
         } catch (SQLException e) {
-            e.printStackTrace(); // For debugging purposes
-            throw e; // Rethrow or handle as needed
+            AuditLogger.logActivity(getCurrentUserId(), "UPDATE_EMPLOYEE_FAILED", String.valueOf(newEmployee.getEmpId()), e.getMessage());
+            throw e;
         } finally {
-            // Clean up resources
-            if (callableStatement != null){
-                callableStatement.close();
+            if (callableStatement != null) callableStatement.close();
         }
-            
-        return isSuccess; // Return success status
-        }
-        
-        
+
+        return isSuccess;
     }
 
     @Override
     public boolean updateUserCredential(UserCredential newUserCredential) throws SQLException {
-    CallableStatement callableStatement = null;      
+        CallableStatement callableStatement = null;      
         boolean isSuccess = false;
 
         try {
-            // Prepare the stored procedure call
             callableStatement = connection.prepareCall("{CALL UpdateUserCredential(?, ?, ?)}");
 
-            // Set input parameters
             callableStatement.setInt(1, newUserCredential.getEmpId());
             callableStatement.setString(2, newUserCredential.getPassword());
             callableStatement.setString(3, newUserCredential.getUserRole().toString());
 
-            // Execute the stored procedure
             callableStatement.execute();
-            isSuccess = true; // Set success flag
+            isSuccess = true;
+
+            // AUDIT LOG (CREDENTIAL UPDATE EVENT)
+            AuditLogger.logActivity(
+                getCurrentUserId(),
+                "UPDATE_CREDENTIALS",
+                String.valueOf(newUserCredential.getEmpId()),
+                "Updated password and role to: " + newUserCredential.getUserRole().toString()
+            );
+
         } catch (SQLException e) {
-            e.printStackTrace(); // For debugging purposes
-            throw e; // Rethrow or handle as needed
+            AuditLogger.logActivity(getCurrentUserId(), "UPDATE_CREDENTIALS_FAILED", String.valueOf(newUserCredential.getEmpId()), e.getMessage());
+            throw e;
         } finally {
-            // Clean up resources
-            if (callableStatement != null){
-                callableStatement.close();
+            if (callableStatement != null) callableStatement.close();
         }
-            
-        return isSuccess; // Return success status
-        }
-        
-        
+
+        return isSuccess;
     }
 
     @Override
     public boolean deleteEmployeeRecord(int employeeId) throws SQLException {
         String sql = "DELETE FROM employee WHERE employee_id = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setInt(1, employeeId); // Set the employee ID in the prepared statement
-            int rowsAffected = pstmt.executeUpdate(); // Execute the delete operation
-            return rowsAffected > 0; // Return true if a record was deleted
+            pstmt.setInt(1, employeeId);
+            int rowsAffected = pstmt.executeUpdate();
+            boolean deleted = rowsAffected > 0;
+
+            if (deleted) {
+                // AUDIT LOG (DELETE EVENT)
+                AuditLogger.logActivity(
+                    getCurrentUserId(),
+                    "DELETE_EMPLOYEE",
+                    String.valueOf(employeeId),
+                    "Permanently deleted employee record from database"
+                );
+            }
+
+            return deleted;
         } catch (SQLException e) {
-            e.printStackTrace(); // Handle SQL exceptions
-            return false; // Return false if an error occurred
+            AuditLogger.logActivity(getCurrentUserId(), "DELETE_EMPLOYEE_FAILED", String.valueOf(employeeId), e.getMessage());
+            return false;
         }
     }
 
-   // Helper method to map ResultSet to Employee object
     private Employee mapResultSetToEmployee(ResultSet rs) throws SQLException {
-        // Get data from ResultSet
         int empId = rs.getInt("employee_id");
         String firstName = rs.getString("first_name");
         String lastName = rs.getString("last_name");
@@ -278,14 +301,12 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
         String password = rs.getString("password");
         UserRole userRole = UserRole.valueOf(rs.getString("user_role"));
 
-        // Create JobPosition with full information
         JobPosition jobPosition = new JobPosition(
             rs.getString("job_title"),
             rs.getString("job_description")
         );
         jobPosition.setPositionId(rs.getInt("position_id"));
 
-        // Create PositionSalaryHistory
         PositionSalaryHistory positionSalaryHistory = new PositionSalaryHistory(
             empId,
             jobPosition,
@@ -298,7 +319,6 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
         );
         positionSalaryHistory.setPositionSalaryHistoryId(rs.getInt("position_salary_history_id"));
 
-        // Create Address
         Address address = new Address(
             rs.getInt("address_id"),
             rs.getString("building_street"),
@@ -308,15 +328,13 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             rs.getString("zipcode")
         );
 
-        // Create EmployeeAddress
         EmployeeAddress employeeAddress = new EmployeeAddress(
             empId,
             address,
             AddressType.valueOf(rs.getString("address_type"))
         );
 
-        // Create Employee using the parameterized constructor
-        Employee employee = new Employee(
+        return new Employee(
             firstName,
             lastName,
             gender,
@@ -335,8 +353,5 @@ public class EmployeeUserMgmtImpl implements EmployeeUserMgmtDAO {
             password,
             userRole
         );
-
-        return employee;
     }
-
 }

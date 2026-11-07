@@ -176,6 +176,7 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
+           // Control 2 : Log employee update activity for audit trail
            AuditLogger.logActivity(
               "EMPLOYEE_UPDATED",
                String.valueOf(employee.getEmpId())
@@ -236,6 +237,7 @@ public class EmployeeMgmtController {
 
             if (isSuccessful) {
 
+            // Control 2 : Log new employee creation for audit trail
             AuditLogger.logActivity(
                 "EMPLOYEE_ADDED",
                 String.valueOf(employee.getEmpId())
@@ -329,6 +331,7 @@ public class EmployeeMgmtController {
 
                 if (isSuccessful) {
 
+                    // Control 2 : Log employee deletion for audit trail
                     AuditLogger.logActivity(
                         "EMPLOYEE_DELETED",
                         String.valueOf(empId)
